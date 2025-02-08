@@ -5,7 +5,7 @@ import sys
 from typing import Optional
 
 import chardet
-from PyQt5.QtCore import QStandardPaths, Qt
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QFont, QMouseEvent
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QTextEdit, QFileDialog, QAction, QTabWidget, QWidget,

@@ -1,15 +1,38 @@
-#editor_functions.py
+import os
 import re
-from PyQt5.QtGui import QTextDocument, QPixmap
+import io
+import sys
+
+from PyQt5.QtCore import QUrl
+from PyQt5.QtGui import QTextDocument, QIcon
 from PyQt5.QtWidgets import QMessageBox, QFileDialog, QWidget, QVBoxLayout
 
+def get_resource_path(relative_path: str) -> str:
+    """
+    根据运行环境返回资源文件的绝对路径，
+    如果使用 PyInstaller 打包，则使用 sys._MEIPASS 作为基础路径，
+    否则使用当前模块所在的目录。
+    """
+    base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
 
-def save_file(text_edit, file_path):
-    """保存文件内容到原路径，作用是覆写"""
+def get_resource_url(relative_path: str) -> str:
+    """
+    将资源文件路径转换为 QSS 使用的格式：
+    返回绝对路径，使用正斜杠，不附带 file:/// 前缀。
+    例如返回：D:/AppTests/tetee/close_icon.png
+    """
+    path = get_resource_path(relative_path)
+    path = os.path.abspath(path)  # 确保是绝对路径
+    path = path.replace("\\", "/")  # 替换为正斜杠
+    return path
+
+def save_file(text_edit, file_path: str) -> None:
+    """
+    将 text_edit 的内容保存到指定文件路径（覆盖写入）
+    """
     try:
-        if file_path:  # 如果传入了有效的路径
-            # 使用 io.open 来显式指定编码方式
-            import io
+        if file_path:
             with io.open(file_path, 'w', encoding='utf-8') as file:
                 file.write(text_edit.toPlainText())
         else:
@@ -17,185 +40,179 @@ def save_file(text_edit, file_path):
     except Exception as e:
         QMessageBox.critical(text_edit, "错误", f"保存文件时出错: {e}")
 
-def save_as_file(text_edit, parent):
-    """另存为指定路径，作用是保存其他名称的文件，从而不影响原文件"""
-    file_name, _ = QFileDialog.getSaveFileName(parent, '另存为', '', '文本文件 (*.txt)')
-    if file_name:
-        save_file(text_edit, file_name, overwrite=False)  # 另存为时不覆盖原文件
-
-def find_text(query, text_edit, match_case=False):
-    """循环查找文本，直到文本末尾，之后从文本开始再查找"""
+def find_text(query: str, text_edit, match_case: bool = False):
+    """
+    在 text_edit 中查找 query，从当前位置开始查找，未找到则从头开始
+    """
     try:
-        cursor = text_edit.textCursor()  # 获取当前光标
+        cursor = text_edit.textCursor()
         options = QTextDocument.FindFlags()
         if match_case:
-            options |= QTextDocument.FindCaseSensitively  # 设置匹配大小写选项
+            options |= QTextDocument.FindCaseSensitively
 
-        if cursor.isNull():  # 如果光标为空，设置为文档开头
+        if cursor.isNull():
             cursor.setPosition(0)
 
         while True:
             cursor = text_edit.document().find(query, cursor, options)
-            if cursor.isNull():  # 如果未找到文本
-                # 一轮查找完毕后，重新从文档开头开始查找
+            if cursor.isNull():
                 cursor.setPosition(0)
                 cursor = text_edit.document().find(query, cursor, options)
-                if cursor.isNull():  # 再次没有找到，提示并结束
+                if cursor.isNull():
                     QMessageBox.information(text_edit, "提示", "未找到指定文本！")
                     return None
 
-            text_edit.setTextCursor(cursor)  # 将光标定位到找到的文本位置
-            text_edit.ensureCursorVisible()  # 确保光标可见
-            text_edit.setFocus()  # 自动切换焦点到文本框
-            return cursor  # 返回光标，以便后续操作
+            text_edit.setTextCursor(cursor)
+            text_edit.ensureCursorVisible()
+            text_edit.setFocus()
+            return cursor
     except Exception as e:
         QMessageBox.critical(text_edit, "错误", f"发生错误: {e}")
         return None
 
-def replace_text(find_query, replace_query, text_edit, match_case=False):
-    """逐个替换文本"""
+def replace_text(find_query: str, replace_query: str, text_edit, match_case: bool = False) -> None:
+    """
+    在 text_edit 中替换第一个匹配项
+    """
     try:
-        if not find_query or not find_query.strip():
+        if not find_query.strip():
             QMessageBox.warning(text_edit, "警告", "查找文本不能为空")
             return
-        cursor = text_edit.textCursor()  # 获取当前光标
-        # 如果匹配大小写敏感
+
+        cursor = text_edit.textCursor()
         options = QTextDocument.FindFlags()
         if match_case:
             options |= QTextDocument.FindCaseSensitively
+
         while True:
-            cursor = text_edit.document().find(find_query, cursor, options)  # 查找下一个匹配项
-            if cursor.isNull():  # 没有找到匹配文本
-                cursor.setPosition(0)  # 如果到达末尾，重新从开头查找
+            cursor = text_edit.document().find(find_query, cursor, options)
+            if cursor.isNull():
+                cursor.setPosition(0)
                 cursor = text_edit.document().find(find_query, cursor, options)
-                if cursor.isNull():  # 如果重新查找还是没有匹配文本，退出
+                if cursor.isNull():
                     QMessageBox.information(text_edit, "提示", "没有更多的文本可以替换！")
                     return
-            cursor.insertText(replace_query)  # 直接插入替换文本
-            # 更新光标并确保可见
+            cursor.insertText(replace_query)
             text_edit.setTextCursor(cursor)
             text_edit.ensureCursorVisible()
-            return  # 只替换一个匹配项后返回，等待下一次调用
+            return
     except Exception as e:
         QMessageBox.critical(text_edit, "错误", f"替换时出现问题: {e}")
 
-def replace_all_text(find_query, replace_query, text_edit, match_case=False):
-    """使用 re.sub 替换文本，支持撤销功能"""
+def replace_all_text(find_query: str, replace_query: str, text_edit, match_case: bool = False) -> None:
+    """
+    在 text_edit 中替换所有匹配项（支持撤销操作）
+    """
     try:
-        if not find_query or not find_query.strip():
+        if not find_query.strip():
             QMessageBox.warning(text_edit, "警告", "查找文本不能为空")
             return
-        # 获取当前 QTextEdit 的文本内容
-        document = text_edit.document()
+
         cursor = text_edit.textCursor()
+        document = text_edit.document()
 
-        # 开始一个撤销块
         cursor.beginEditBlock()
-
-        # 获取完整文本
         full_text = document.toPlainText()
-
-        # 使用 re.sub 替换文本
         flags = 0 if match_case else re.IGNORECASE
         new_text, count = re.subn(find_query, replace_query, full_text, flags=flags)
 
-        # 如果有替换内容
         if count > 0:
-            # 将新的文本内容设置到 QTextEdit 中
             cursor.select(cursor.Document)
             cursor.insertText(new_text)
         else:
             QMessageBox.information(text_edit, "结果", "未找到匹配项。")
-
-        # 结束撤销块
         cursor.endEditBlock()
-
         text_edit.setFocus()
-
     except Exception as e:
         QMessageBox.critical(text_edit, "错误", f"替换时出现问题: {e}")
 
-def new_file_e(self, text_edit):
-    """创建新标签并初始化"""
+def update_tab_title(parent, text_edit) -> None:
+    """
+    根据文件名和保存状态更新标签标题，
+    parent 为包含 tabs 的主窗口对象
+    """
+    index = parent.tabs.indexOf(text_edit.parent())
+    if index != -1:
+        file_name = os.path.basename(text_edit.file_path) if text_edit.file_path else "未命名"
+        suffix = "*" if not text_edit.is_saved else ""
+        max_length = 7
+        if len(file_name) + len(suffix) > max_length:
+            truncated_name = f"{file_name[:max_length - 3 - len(suffix)]}..."
+        else:
+            truncated_name = file_name
+        tab_text = f"{truncated_name}{suffix}"
+        parent.tabs.setTabText(index, tab_text)
+        parent.tabs.setTabToolTip(index, text_edit.file_path if text_edit.file_path else "")
+
+def new_file_e(parent, text_edit) -> None:
+    """
+    在新的标签页中创建一个新文件
+    """
     tab_widget = QWidget()
     tab_layout = QVBoxLayout(tab_widget)
     tab_layout.setContentsMargins(0, 0, 0, 0)
     tab_layout.addWidget(text_edit)
 
-    tab_index = self.tabs.addTab(tab_widget, "未命名")  # 默认标签为“未命名”
-    self.tabs.setCurrentIndex(tab_index)
+    tab_index = parent.tabs.addTab(tab_widget, "未命名")
+    parent.tabs.setCurrentIndex(tab_index)
+    update_tab_title(parent, text_edit)
 
-    # 初始化标签名称
-    self.update_tab_title(text_edit)
-
-def add_new_tab_e(self, text_edit, file_path, file_name):
-    """创建新的标签页"""
+def add_new_tab_e(parent, text_edit, file_path: str, file_name: str) -> None:
+    """
+    添加一个新标签页，并加载指定文件的内容
+    """
     tab_widget = QWidget()
     tab_layout = QVBoxLayout(tab_widget)
-    tab_layout.setContentsMargins(0, 0, 0, 0)  # 取消CustomTextEdit的边距
+    tab_layout.setContentsMargins(0, 0, 0, 0)
     tab_layout.addWidget(text_edit)
 
-    # 添加新标签
-    tab_index = self.tabs.addTab(tab_widget, file_name)
-    self.tabs.setCurrentIndex(tab_index)
-
-    # 加载文件内容
+    tab_index = parent.tabs.addTab(tab_widget, file_name)
+    parent.tabs.setCurrentIndex(tab_index)
     text_edit.load_file_content(file_path)
+    update_tab_title(parent, text_edit)
+    parent.tabs.setTabToolTip(tab_index, file_path)
 
-    # 初始化标签名称
-    self.update_tab_title(text_edit)
-
-    # 设置工具提示为文件完整路径
-    self.tabs.setTabToolTip(tab_index, file_path)
-
-def close_tab(widget, tabs):
-    """关闭标签页"""
+def close_tab(widget, tabs) -> None:
+    """
+    关闭包含 widget 的标签页
+    """
     tab_index = tabs.indexOf(widget)
     if tab_index != -1:
-        tabs.removeTab(tab_index)  # 删除标签页
-        widget.deleteLater()  # 删除控件
+        tabs.removeTab(tab_index)
+        widget.deleteLater()
 
-def show_hint(message, tips, icon_path=None):
-    """显示提示信息弹窗，返回按钮点击结果"""
+def show_hint(message: str, title: str, icon_path: str = None) -> int:
+    """
+    显示提示对话框，包含“保存”、“不保存”、“取消”按钮，返回用户点击结果
+    """
     msg = QMessageBox()
-    msg.setIcon(QMessageBox.Information)  # 使用正确的图标类型
+    msg.setIcon(QMessageBox.Information)
     msg.setText(message)
-    msg.setWindowTitle(tips)
-    # 设置按钮文本为中文
+    msg.setWindowTitle(title)
     msg.setStandardButtons(QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel)
     msg.button(QMessageBox.Save).setText("保存")
     msg.button(QMessageBox.Discard).setText("不保存")
     msg.button(QMessageBox.Cancel).setText("取消")
-    msg.setDefaultButton(QMessageBox.Save)  # 默认选择“保存”
+    msg.setDefaultButton(QMessageBox.Save)
     if icon_path:
-        msg.setWindowIcon(QIcon(icon_path))  # 设置窗口图标
-        msg.setIcon(QMessageBox.NoIcon)  # 移除默认图标
-    # 使用 exec() 而不是 exec_()
-    result = msg.exec()  # 使用 exec() 替代 exec_()
-    # 返回按钮点击的结果
+        msg.setWindowIcon(QIcon(icon_path))
+        msg.setIcon(QMessageBox.NoIcon)
+    result = msg.exec()
     return result
 
-from PyQt5.QtWidgets import QMessageBox, QDialog
-from PyQt5.QtGui import QIcon
-
-def show_hint_e(message, tips, icon_path=None):
-    """显示提示信息弹窗，返回按钮点击结果"""
+def show_hint_e(message: str, title: str, icon_path: str = None) -> int:
+    """
+    显示提示对话框，包含“不保存”和“取消”按钮，返回用户点击结果
+    """
     msg = QMessageBox()
     msg.setText(message)
-    msg.setWindowTitle(tips)
-
-    # 设置按钮文本为中文
+    msg.setWindowTitle(title)
     msg.setStandardButtons(QMessageBox.Discard | QMessageBox.Cancel)
     msg.button(QMessageBox.Discard).setText("不保存")
     msg.button(QMessageBox.Cancel).setText("取消")
-    msg.setDefaultButton(QMessageBox.Save)  # 默认选择“保存”
-
-    # 设置自定义图标（如果提供了图标路径）
+    msg.setDefaultButton(QMessageBox.Discard)
     if icon_path:
-        msg.setWindowIcon(QIcon(icon_path))  # 设置窗口图标
-        msg.setIcon(QMessageBox.NoIcon)  # 移除默认图标
-
-    # 使用 exec() 而不是 exec_()
-    result = msg.exec()  # 使用 exec() 替代 exec_()
-    # 返回按钮点击的结果
+        msg.setWindowIcon(QIcon(icon_path))
+        msg.setIcon(QMessageBox.NoIcon)
+    result = msg.exec()
     return result

@@ -3,9 +3,8 @@ import re
 import io
 import sys
 
-from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QTextDocument, QIcon
-from PyQt5.QtWidgets import QMessageBox, QFileDialog, QWidget, QVBoxLayout
+from PyQt5.QtWidgets import QMessageBox, QWidget, QVBoxLayout
 
 def get_resource_path(relative_path: str) -> str:
     """

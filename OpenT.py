@@ -80,13 +80,18 @@ class CustomTextEdit(QTextEdit):
             text = source.text().replace('\r\n', '\n').replace('\r', '\n')
             self.insertPlainText(text)
 
-
 class TextEditor(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('OpenT')
         self.setWindowIcon(QIcon(get_resource_path("icon.ico")))
         self.setGeometry(100, 100, 800, 600)
+
+        self.setStyleSheet("""
+                    * {
+                        font-family: 'Microsoft YaHei', sans-serif;
+                    }
+                """)
 
         # 记录已打开文件路径（防止重复打开）
         self.opened_files = set()
@@ -105,8 +110,8 @@ class TextEditor(QMainWindow):
                 margin-right: 2px;
                 border-top-left-radius: 4px;
                 border-top-right-radius: 4px;
-                min-width: 120px;
-                max-width: 120px;
+                min-width: 100px;
+                max-width: 100px;
                 text-overflow: ellipsis;
                 overflow: hidden;
             }
@@ -135,7 +140,7 @@ class TextEditor(QMainWindow):
         # 构建查找栏
         self.find_bar = QWidget(self)
         self.find_layout = QHBoxLayout(self.find_bar)
-        self.find_layout.setContentsMargins(0, 0, 0, 0)
+        self.find_layout.setContentsMargins(10, 0, 10, 0)
         self.find_label = QLabel('查找:', self)
         self.find_input = QLineEdit(self)
         self.find_button = QPushButton('查找', self)
@@ -149,7 +154,7 @@ class TextEditor(QMainWindow):
         # 构建替换栏
         self.replace_bar = QWidget(self)
         self.replace_layout = QHBoxLayout(self.replace_bar)
-        self.replace_layout.setContentsMargins(0, 0, 0, 0)
+        self.replace_layout.setContentsMargins(10, 0, 10, 0)
         self.find_replace_label = QLabel('查找内容:', self)
         self.find_replace_input = QLineEdit(self)
         self.replace_label = QLabel('替换为:', self)
@@ -390,7 +395,7 @@ class TextEditor(QMainWindow):
         current_widget = self.tabs.widget(index)
         if current_widget:
             text_edit = current_widget.findChild(CustomTextEdit)
-            if text_edit and text_edit.file_path and not text_edit.is_saved:
+            if text_edit.file_path and not text_edit.is_saved:
                 icon_path = get_resource_path("icon.ico")
                 result = show_hint("文件未保存，是否保存？", "提示", icon_path)
                 if result == QMessageBox.Save:
